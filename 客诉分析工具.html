@@ -301,7 +301,7 @@ function parseCSV(text) {
   let cur = null;
   for (let i = 1; i < physLines.length; i++) {
     const l = physLines[i];
-    if (/^\d{4}\/\d+\/\d+,/.test(l)) {
+    if (/^\d{2,4}\s*[\/\.]\s*\d+\s*[\/\.]\s*\d+\s*,/.test(l)) {
       if (cur !== null) logicalLines.push(cur);
       cur = l;
     } else if (cur !== null && l.trim()) {
@@ -357,8 +357,11 @@ function calcStats(rows) {
 }
 
 function parseDate(s) {
-  const m = s.match(/^(\d{4})\/(\d+)\/(\d+)/);
-  return m ? new Date(+m[1], +m[2]-1, +m[3]) : null;
+  const m = s.match(/^(\d{2,4})\s*[\/\.]\s*(\d+)\s*[\/\.]\s*(\d+)/);
+  if (!m) return null;
+  let year = +m[1];
+  if (year < 100) year += 2000;
+  return new Date(year, +m[2]-1, +m[3]);
 }
 function isoWeek(d) {
   const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -392,17 +395,20 @@ function processCSV(text, filename) {
   setTimeout(() => {  // 让进度UI先渲染
     try {
       const all  = parseCSV(text);
-      const rows = all.filter(r => /^\d{4}\/\d+\/\d+/.test(r['时间']||''));
+      const rows = all.filter(r => /^\d{2,4}\s*[\/\.]\s*\d+\s*[\/\.]/.test(r['时间']||''));
 
       if (rows.length === 0) {
         document.getElementById('progress-section').style.display = 'none';
         document.getElementById('upload-section').style.display   = 'flex';
-        showErr('未能识别到有效数据行。请确认文件包含"时间"列，且日期格式为 YYYY/M/D。');
+        showErr('未能识别到有效数据行。请确认文件包含"时间"列，且日期格式为 YYYY/M/D 或 YYYY.M.D。');
         return;
       }
 
       // ── 按日 ──
-      const dayMap = groupBy(rows, r => (r['时间'].match(/^(\d{4}\/\d+\/\d+)/)||[])[1]);
+      const dayMap = groupBy(rows, r => {
+        const d = parseDate(r['时间']||'');
+        return d ? `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}` : null;
+      });
       const dailyList = Object.keys(dayMap).sort().map(d => ({
         label:d, date:parseDate(d), ...calcStats(dayMap[d])
       }));
