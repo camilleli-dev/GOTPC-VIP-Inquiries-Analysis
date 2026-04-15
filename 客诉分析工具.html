@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIP客诉分析工具</title>
+<style>
+/* ── 基础 ─────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;color:#333;min-height:100vh}
+.page{max-width:1400px;margin:0 auto;padding:24px}
+
+/* ── 上传区 ──────────────────────────────────── */
+#upload-section{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh}
+.tool-title{font-size:28px;font-weight:700;color:#1a237e;margin-bottom:8px;text-align:center}
+.tool-sub{font-size:14px;color:#888;margin-bottom:40px;text-align:center}
+.drop-zone{
+  width:560px;max-width:100%;
+  border:2px dashed #7986cb;border-radius:16px;
+  background:#fff;padding:48px 32px;text-align:center;
+  cursor:pointer;transition:all .2s;position:relative
+}
+.drop-zone:hover,.drop-zone.drag-over{border-color:#3949ab;background:#f5f7ff}
+.drop-icon{font-size:48px;margin-bottom:16px}
+.drop-text{font-size:16px;color:#555;margin-bottom:8px}
+.drop-hint{font-size:13px;color:#aaa;margin-bottom:24px}
+.drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.btn-upload{
+  display:inline-block;background:#3949ab;color:#fff;
+  padding:10px 28px;border-radius:8px;font-size:14px;
+  border:none;cursor:pointer;pointer-events:none
+}
+.format-tip{margin-top:20px;font-size:12px;color:#aaa;line-height:1.8}
+.format-tip b{color:#555}
+
+/* ── 进度 ──────────────────────────────────── */
+#progress-section{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:80vh}
+.prog-text{font-size:16px;color:#3949ab;margin-top:16px}
+.spinner{width:48px;height:48px;border:4px solid #e8eaf6;border-top-color:#3949ab;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── 报告区 ──────────────────────────────────── */
+#report-section{display:none}
+.report-hdr{
+  background:linear-gradient(135deg,#1a237e,#3949ab);
+  color:#fff;border-radius:12px;padding:32px 40px;margin-bottom:24px;
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px
+}
+.report-hdr h1{font-size:24px;font-weight:700;margin-bottom:6px}
+.report-hdr p{font-size:13px;opacity:.75}
+.btn-reset{background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.4);
+  padding:8px 20px;border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap;transition:.2s}
+.btn-reset:hover{background:rgba(255,255,255,.3)}
+.btn-print{background:#fff;color:#3949ab;border:none;
+  padding:8px 20px;border-radius:8px;font-size:13px;cursor:pointer;margin-left:8px;font-weight:600}
+
+/* ── KPI ──────────────────────────────────── */
+.kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.kc{background:#fff;border-radius:10px;padding:22px 18px;box-shadow:0 2px 8px rgba(0,0,0,.07);text-align:center}
+.kc .v{font-size:38px;font-weight:700;line-height:1.1}
+.kc .l{font-size:13px;color:#888;margin-top:6px}
+@media(max-width:700px){.kpi{grid-template-columns:repeat(2,1fr)}}
+
+/* ── 区块 ──────────────────────────────────── */
+.sec{background:#fff;border-radius:10px;padding:22px;box-shadow:0 2px 8px rgba(0,0,0,.07);margin-bottom:20px}
+.sec h2{font-size:16px;color:#1a237e;border-left:4px solid #3949ab;padding-left:11px;margin-bottom:18px}
+
+/* ── Tab ──────────────────────────────────── */
+.tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.tab{padding:8px 20px;border-radius:20px;font-size:13px;cursor:pointer;
+  background:#e8eaf6;color:#3949ab;border:none;font-weight:500;transition:.15s}
+.tab.active{background:#3949ab;color:#fff}
+.tab-panel{display:none}.tab-panel.active{display:block}
+
+/* ── 表格 ──────────────────────────────────── */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:600px}
+thead th{background:#e8eaf6;color:#1a237e;font-weight:600;padding:10px 12px;text-align:center;white-space:nowrap}
+tbody td{padding:9px 12px;text-align:center;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+tbody tr:hover{background:#f5f7ff}
+tbody tr:last-child td{border-bottom:none}
+.pc{text-align:left!important;font-size:12px;color:#666;white-space:nowrap}
+
+/* ── 洞察 ──────────────────────────────────── */
+.ins{background:#e8f5e9;border-left:4px solid #27ae60;border-radius:6px;
+  padding:14px 16px;font-size:13.5px;line-height:2;color:#2d6a4f}
+.ins-item{margin-bottom:2px}
+
+/* ── 人员卡片 ──────────────────────────────── */
+.pg{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.pc-card{background:#f5f7ff;border-radius:9px;padding:14px 12px;text-align:center}
+.pc-card .pn{font-size:14px;font-weight:600;color:#1a237e}
+.pc-card .pv{font-size:28px;font-weight:700;color:#3949ab;line-height:1.2;margin:4px 0}
+.pc-card .pp{font-size:12px;color:#888}
+
+/* ── 错误 ──────────────────────────────────── */
+.err-box{background:#fff3f3;border-left:4px solid #e74c3c;border-radius:6px;
+  padding:14px 16px;color:#c0392b;font-size:13px;margin-top:16px;line-height:1.8}
+
+/* ── 打印 ──────────────────────────────────── */
+@media print{
+  #upload-section,#progress-section,.btn-reset,.btn-print,.tabs{display:none!important}
+  .tab-panel{display:block!important}
+  .sec{box-shadow:none;border:1px solid #ddd}
+  body{background:#fff}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ① 上传区 -->
+<div id="upload-section">
+  <div class="tool-title">VIP 客诉解决情况分析工具</div>
+  <div class="tool-sub">上传客诉统计表，自动生成日 / 周 / 月解决情况报告</div>
+
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".csv">
+    <div class="drop-icon">📂</div>
+    <div class="drop-text">点击选择 或 拖拽 CSV 文件到此处</div>
+    <div class="drop-hint">支持 VIP客诉问题统计.csv（UTF-8 / GBK 编码均可）</div>
+    <span class="btn-upload">选择文件</span>
+  </div>
+
+  <div class="format-tip">
+    <b>文件格式要求：</b>CSV 表格，需包含以下列：<br>
+    时间 &nbsp;|&nbsp; 客诉状态（已解决 / 不需要跟进 / 需要跟进）&nbsp;|&nbsp; 回复人 &nbsp;|&nbsp; 问题解决时间 &nbsp;|&nbsp; 遗留问题（紧急跟进）
+  </div>
+  <div id="upload-err"></div>
+</div>
+
+<!-- ② 进度 -->
+<div id="progress-section">
+  <div class="spinner"></div>
+  <div class="prog-text">正在分析数据，请稍候…</div>
+</div>
+
+<!-- ③ 报告 -->
+<div id="report-section">
+  <div class="report-hdr">
+    <div>
+      <h1>VIP 客诉解决情况分析报告</h1>
+      <p id="rpt-meta"></p>
+    </div>
+    <div>
+      <button class="btn-reset" onclick="resetTool()">↩ 重新上传</button>
+      <button class="btn-print" onclick="window.print()">🖨 打印报告</button>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi">
+    <div class="kc" style="border-top:4px solid #1976d2">
+      <div class="v" id="kpi-total" style="color:#1976d2">-</div>
+      <div class="l">累计客诉总量</div>
+    </div>
+    <div class="kc" style="border-top:4px solid #27ae60">
+      <div class="v" id="kpi-resolved" style="color:#27ae60">-</div>
+      <div class="l">累计已解决</div>
+    </div>
+    <div class="kc" style="border-top:4px solid #f39c12">
+      <div class="v" id="kpi-legacy" style="color:#f39c12">-</div>
+      <div class="l">累计遗留问题</div>
+    </div>
+    <div class="kc" style="border-top:4px solid #27ae60">
+      <div class="v" id="kpi-rate">-</div>
+      <div class="l">整体问题解决率</div>
+    </div>
+  </div>
+
+  <!-- 洞察 -->
+  <div class="sec">
+    <h2>核心洞察</h2>
+    <div class="ins" id="insights"></div>
+  </div>
+
+  <!-- Tab 切换 -->
+  <div class="sec">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('month',this)">月度统计</button>
+      <button class="tab" onclick="switchTab('week',this)">周度统计</button>
+      <button class="tab" onclick="switchTab('day',this)">每日明细</button>
+    </div>
+
+    <div id="tab-month" class="tab-panel active">
+      <div class="tbl-wrap"><table id="tbl-month">
+        <thead><tr><th>月份</th><th>日期范围</th><th>客诉总数</th><th>已解决</th>
+          <th>遗留问题</th><th>均处理时长</th><th>解决率</th><th>人员明细</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+
+    <div id="tab-week" class="tab-panel">
+      <div class="tbl-wrap"><table id="tbl-week">
+        <thead><tr><th>周次</th><th>日期范围</th><th>客诉总数</th><th>已解决</th>
+          <th>遗留问题</th><th>均处理时长</th><th>解决率</th><th>人员明细</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+
+    <div id="tab-day" class="tab-panel">
+      <div class="tbl-wrap"><table id="tbl-day">
+        <thead><tr><th>日期</th><th>客诉总数</th><th>已解决</th><th>待跟进</th>
+          <th>遗留问题</th><th>均处理时长</th><th>解决率</th><th>人员明细</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- 人员贡献 -->
+  <div class="sec">
+    <h2>全期人员解决贡献汇总</h2>
+    <div class="pg" id="person-grid"></div>
+  </div>
+</div>
+
+</div><!-- .page -->
+
+<script>
+// ══════════════════════════════════════════════
+//  文件上传交互
+// ══════════════════════════════════════════════
+const dropZone  = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) handleFile(fileInput.files[0]);
+});
+
+function resetTool() {
+  document.getElementById('report-section').style.display  = 'none';
+  document.getElementById('upload-section').style.display  = 'flex';
+  fileInput.value = '';
+}
+
+function showErr(msg) {
+  document.getElementById('upload-err').innerHTML =
+    `<div class="err-box">⚠ ${msg}</div>`;
+}
+
+// ══════════════════════════════════════════════
+//  读取文件（自动检测 UTF-8 / GBK）
+// ══════════════════════════════════════════════
+function handleFile(file) {
+  document.getElementById('upload-err').innerHTML = '';
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    showErr('请上传 .csv 格式的文件'); return;
+  }
+  document.getElementById('upload-section').style.display  = 'none';
+  document.getElementById('progress-section').style.display = 'flex';
+
+  // 先尝试 UTF-8，再 fallback GBK
+  const reader = new FileReader();
+  reader.onload = e => {
+    let text = e.target.result;
+    // 检测是否乱码（GBK文件用UTF-8读会出现替换字符）
+    if (text.includes('\uFFFD')) {
+      const r2 = new FileReader();
+      r2.onload = e2 => { processCSV(e2.target.result, file.name); };
+      r2.onerror = () => showErr('文件读取失败，请检查文件格式');
+      r2.readAsText(file, 'GBK');
+    } else {
+      processCSV(text, file.name);
+    }
+  };
+  reader.onerror = () => showErr('文件读取失败');
+  reader.readAsText(file, 'UTF-8');
+}
+
+// ══════════════════════════════════════════════
+//  CSV 解析（行首日期匹配，兼容多行字段）
+// ══════════════════════════════════════════════
+function parseCSV(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const physLines = text.split(/\r?\n/);
+
+  function splitCells(line) {
+    const cells = []; let cell = '', inq = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        if (inq && line[i+1] === '"') { cell += '"'; i++; }
+        else inq = !inq;
+      } else if (!inq && c === ',') { cells.push(cell.trim()); cell = ''; }
+      else cell += c;
+    }
+    cells.push(cell.trim());
+    return cells;
+  }
+
+  const headers = splitCells(physLines[0]);
+  const logicalLines = [];
+  let cur = null;
+  for (let i = 1; i < physLines.length; i++) {
+    const l = physLines[i];
+    if (/^\d{4}\/\d+\/\d+,/.test(l)) {
+      if (cur !== null) logicalLines.push(cur);
+      cur = l;
+    } else if (cur !== null && l.trim()) {
+      cur += ' ' + l.trim();
+    }
+  }
+  if (cur !== null) logicalLines.push(cur);
+
+  return logicalLines.map(line => {
+    const vals = splitCells(line);
+    const obj  = {};
+    headers.forEach((h, i) => { obj[h] = vals[i] || ''; });
+    return obj;
+  });
+}
+
+// ══════════════════════════════════════════════
+//  核心统计
+// ══════════════════════════════════════════════
+function toHours(s) {
+  if (!s) return null;
+  if (s.includes('24')) return 24;
+  if (s.includes('48')) return 48;
+  if (s.includes('72')) return 72;
+  if (s.includes('3天') || s.includes('3 天')) return 96;
+  return null;
+}
+
+function calcStats(rows) {
+  const resolved = rows.filter(r =>
+    r['客诉状态'] === '已解决' || r['客诉状态'] === '不需要跟进');
+  const pending  = rows.filter(r => r['客诉状态'] === '需要跟进');
+  const legacy   = rows.filter(r =>
+    r['客诉状态'] === '需要跟进' || (r['遗留问题（紧急跟进）']||'').trim() !== '');
+
+  const hrs = [];
+  resolved.forEach(r => {
+    const h = toHours(r['问题解决时间']);
+    if (h !== null) hrs.push(h);
+    else if (r['客诉状态'] === '不需要跟进') hrs.push(0);
+  });
+  const avgH = hrs.length ? +(hrs.reduce((a,b)=>a+b,0)/hrs.length).toFixed(1) : null;
+  const rate = rows.length ? +(resolved.length/rows.length*100).toFixed(1) : 0;
+
+  const pm = {};
+  resolved.forEach(r => {
+    (r['回复人']||'').split(/[,，]/).forEach(p => {
+      p = p.trim(); if (p) pm[p] = (pm[p]||0)+1;
+    });
+  });
+  return { total:rows.length, resolved:resolved.length, pending:pending.length,
+           legacy:legacy.length, avgH, rate, pm };
+}
+
+function parseDate(s) {
+  const m = s.match(/^(\d{4})\/(\d+)\/(\d+)/);
+  return m ? new Date(+m[1], +m[2]-1, +m[3]) : null;
+}
+function isoWeek(d) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay()||7));
+  const y = t.getUTCFullYear();
+  const w = Math.ceil(((t - new Date(Date.UTC(y,0,1)))/86400000+1)/7);
+  return `${y}-W${String(w).padStart(2,'0')}`;
+}
+function fmtD(d) { return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; }
+function fmtM(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+function rateColor(r) { return r>=90?'#27ae60':r>=75?'#f39c12':'#e74c3c'; }
+function ah(h) { return h===null?'N/A':`${h}h`; }
+function pmStr(pm) {
+  return Object.entries(pm).sort((a,b)=>a[0].localeCompare(b[0]))
+    .map(([k,v])=>`${k}:${v}`).join('　');
+}
+
+function groupBy(rows, keyFn) {
+  const map = {};
+  rows.forEach(r => {
+    const k = keyFn(r);
+    if (k) (map[k]=map[k]||[]).push(r);
+  });
+  return map;
+}
+
+// ══════════════════════════════════════════════
+//  主处理流程
+// ══════════════════════════════════════════════
+function processCSV(text, filename) {
+  setTimeout(() => {  // 让进度UI先渲染
+    try {
+      const all  = parseCSV(text);
+      const rows = all.filter(r => /^\d{4}\/\d+\/\d+/.test(r['时间']||''));
+
+      if (rows.length === 0) {
+        document.getElementById('progress-section').style.display = 'none';
+        document.getElementById('upload-section').style.display   = 'flex';
+        showErr('未能识别到有效数据行。请确认文件包含"时间"列，且日期格式为 YYYY/M/D。');
+        return;
+      }
+
+      // ── 按日 ──
+      const dayMap = groupBy(rows, r => (r['时间'].match(/^(\d{4}\/\d+\/\d+)/)||[])[1]);
+      const dailyList = Object.keys(dayMap).sort().map(d => ({
+        label:d, date:parseDate(d), ...calcStats(dayMap[d])
+      }));
+
+      // ── 按月 ──
+      const monMap = groupBy(rows, r => { const d=parseDate(r['时间']); return d?fmtM(d):null; });
+      const monthList = Object.keys(monMap).sort().map(k => {
+        const s = calcStats(monMap[k]);
+        const ds = monMap[k].map(r=>parseDate(r['时间'])).filter(Boolean).sort((a,b)=>a-b);
+        return { label:k, range:`${fmtD(ds[0])} ~ ${fmtD(ds[ds.length-1])}`, ...s };
+      });
+
+      // ── 按周 ──
+      const wkMap = groupBy(rows, r => { const d=parseDate(r['时间']); return d?isoWeek(d):null; });
+      const weekList = Object.keys(wkMap).sort().map(k => {
+        const s = calcStats(wkMap[k]);
+        const ds = wkMap[k].map(r=>parseDate(r['时间'])).filter(Boolean).sort((a,b)=>a-b);
+        return { label:k, range:`${fmtD(ds[0])} ~ ${fmtD(ds[ds.length-1])}`, ...s };
+      });
+
+      // ── 总览 ──
+      const totT = dailyList.reduce((a,d)=>a+d.total,0);
+      const totR = dailyList.reduce((a,d)=>a+d.resolved,0);
+      const totL = dailyList.reduce((a,d)=>a+d.legacy,0);
+      const totRate = +(totR/totT*100).toFixed(1);
+      const allPM = {};
+      dailyList.forEach(d => Object.entries(d.pm).forEach(([k,v])=>{ allPM[k]=(allPM[k]||0)+v; }));
+
+      renderReport({ filename, rows, dailyList, monthList, weekList,
+                     totT, totR, totL, totRate, allPM });
+    } catch(e) {
+      document.getElementById('progress-section').style.display = 'none';
+      document.getElementById('upload-section').style.display   = 'flex';
+      showErr('数据解析出错：' + e.message);
+    }
+  }, 50);
+}
+
+// ══════════════════════════════════════════════
+//  渲染报告
+// ══════════════════════════════════════════════
+function renderReport({ filename, rows, dailyList, monthList, weekList,
+                        totT, totR, totL, totRate, allPM }) {
+  // 日期范围
+  const allDates = dailyList.map(d=>d.date).filter(Boolean).sort((a,b)=>a-b);
+  const dateRange = allDates.length
+    ? `${fmtD(allDates[0])} ~ ${fmtD(allDates[allDates.length-1])}`
+    : '';
+
+  // meta
+  document.getElementById('rpt-meta').textContent =
+    `来源：${filename}　｜　生成时间：${new Date().toLocaleString('zh-CN',{hour12:false})}　｜　统计区间：${dateRange}　｜　共 ${totT} 条记录`;
+
+  // KPI
+  document.getElementById('kpi-total').textContent    = totT;
+  document.getElementById('kpi-resolved').textContent = totR;
+  document.getElementById('kpi-legacy').textContent   = totL;
+  const rateEl = document.getElementById('kpi-rate');
+  rateEl.textContent = totRate + '%';
+  rateEl.style.color = rateColor(totRate);
+  rateEl.closest('.kc').style.borderTopColor = rateColor(totRate);
+
+  // 洞察
+  renderInsights(monthList, weekList, dailyList, totRate, allPM, totR);
+
+  // 表格
+  fillTable('tbl-month', monthList, 'period');
+  fillTable('tbl-week',  weekList,  'period');
+  fillTable('tbl-day',   dailyList, 'day');
+
+  // 人员
+  const pg = document.getElementById('person-grid');
+  pg.innerHTML = Object.entries(allPM).sort((a,b)=>b[1]-a[1]).map(([name,cnt]) => {
+    const pct = (cnt/totR*100).toFixed(1);
+    return `<div class="pc-card">
+      <div class="pn">${name}</div>
+      <div class="pv">${cnt}</div>
+      <div class="pp">占比 ${pct}%</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('progress-section').style.display = 'none';
+  document.getElementById('report-section').style.display   = 'block';
+  window.scrollTo(0,0);
+}
+
+function fillTable(id, list, type) {
+  const tbody = document.querySelector(`#${id} tbody`);
+  tbody.innerHTML = list.map(d => {
+    const cells = type === 'period'
+      ? [d.label, d.range, d.total, d.resolved, d.legacy, ah(d.avgH)]
+      : [d.label, d.total, d.resolved, d.pending, d.legacy, ah(d.avgH)];
+    return `<tr>
+      ${cells.map(c=>`<td>${c}</td>`).join('')}
+      <td style="color:${rateColor(d.rate)};font-weight:600">${d.rate}%</td>
+      <td class="pc">${pmStr(d.pm)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderInsights(monthList, weekList, dailyList, totRate, allPM, totR) {
+  const items = [];
+
+  // 整体解决率评价
+  if (totRate >= 90)      items.push(`✅ 整体解决率 <b>${totRate}%</b>，表现优秀，超过 90% 目标线。`);
+  else if (totRate >= 75) items.push(`📊 整体解决率 <b>${totRate}%</b>，整体良好，仍有提升空间。`);
+  else                    items.push(`⚠️ 整体解决率 <b>${totRate}%</b>，低于 75% 警戒线，需重点关注。`);
+
+  // 最佳月份
+  if (monthList.length > 1) {
+    const best = monthList.reduce((a,b) => b.rate > a.rate ? b : a);
+    const worst = monthList.reduce((a,b) => b.rate < a.rate ? b : a);
+    items.push(`📈 <b>${best.label}</b> 是最佳月份，解决率 <b>${best.rate}%</b>，共处理 ${best.total} 件，遗留仅 ${best.legacy} 件。`);
+    if (best.label !== worst.label)
+      items.push(`📉 <b>${worst.label}</b> 表现最弱，解决率 ${worst.rate}%，遗留问题 ${worst.legacy} 件，需重点复盘。`);
+  }
+
+  // 处理时长
+  const validH = monthList.filter(m => m.avgH !== null);
+  if (validH.length > 0) {
+    const maxH = validH.reduce((a,b)=>b.avgH>a.avgH?b:a);
+    const minH = validH.reduce((a,b)=>b.avgH<a.avgH?b:a);
+    items.push(`⏱ 平均处理时长：最长 <b>${maxH.label}（${maxH.avgH}h）</b>，最短 <b>${minH.label}（${minH.avgH}h）</b>。`);
+  }
+
+  // 最佳周
+  if (weekList.length > 1) {
+    const bestW = weekList.reduce((a,b)=>b.rate>a.rate?b:a);
+    items.push(`🏆 表现最佳周次：<b>${bestW.label}（${bestW.range}）</b>，解决率 <b>${bestW.rate}%</b>。`);
+  }
+
+  // 人员 Top1
+  const topPerson = Object.entries(allPM).sort((a,b)=>b[1]-a[1])[0];
+  if (topPerson) {
+    const pct = (topPerson[1]/totR*100).toFixed(1);
+    items.push(`👥 贡献最多：<b>${topPerson[0]}</b> 共解决 <b>${topPerson[1]}</b> 件，占总解决量的 ${pct}%。`);
+  }
+
+  // 最近趋势（最近2周 vs 前2周）
+  if (weekList.length >= 4) {
+    const recent = weekList.slice(-2);
+    const prev   = weekList.slice(-4, -2);
+    const rAvg   = recent.reduce((a,b)=>a+b.rate,0)/recent.length;
+    const pAvg   = prev.reduce((a,b)=>a+b.rate,0)/prev.length;
+    const diff   = +(rAvg - pAvg).toFixed(1);
+    if (diff > 0) items.push(`📈 近期趋势：最近2周解决率均值 ${rAvg.toFixed(1)}%，较前2周 <b>提升 ${diff}%</b>。`);
+    else if (diff < 0) items.push(`📉 近期趋势：最近2周解决率均值 ${rAvg.toFixed(1)}%，较前2周 <b>下降 ${Math.abs(diff)}%</b>，需关注。`);
+    else items.push(`➡️ 近期趋势：最近2周解决率与前期持平（${rAvg.toFixed(1)}%）。`);
+  }
+
+  document.getElementById('insights').innerHTML =
+    items.map(t=>`<div class="ins-item">${t}</div>`).join('');
+}
+
+// ══════════════════════════════════════════════
+//  Tab 切换
+// ══════════════════════════════════════════════
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+</script>
+</body>
+</html>
