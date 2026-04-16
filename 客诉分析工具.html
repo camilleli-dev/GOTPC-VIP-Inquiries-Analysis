@@ -119,6 +119,7 @@ tbody tr:last-child td{border-bottom:none}
     <div class="drop-icon">📂</div>
     <div class="drop-text">点击选择 或 拖拽 CSV 文件到此处</div>
     <div class="drop-hint">支持 VIP客诉问题统计.csv（UTF-8 / GBK 编码均可）</div>
+    <div class="drop-hint" style="margin-top:6px;font-size:12px;color:#bbb">日期格式自动兼容：2026/3/1 &nbsp;·&nbsp; 2026.3.1 &nbsp;·&nbsp; 2026-3-1 &nbsp;·&nbsp; 26/3/1 &nbsp;·&nbsp; 26.3.1</div>
     <span class="btn-upload">选择文件</span>
   </div>
 
@@ -301,7 +302,8 @@ function parseCSV(text) {
   let cur = null;
   for (let i = 1; i < physLines.length; i++) {
     const l = physLines[i];
-    if (/^\d{2,4}\s*[\/\.]\s*\d+\s*[\/\.]\s*\d+\s*,/.test(l)) {
+    if (/^\d{2,4}\s*[\/\.\-]\s*\d+\s*[\/\.\-]\s*\d+\s*,/.test(l) ||
+        /^\d{1,2}\s*[\/\.\-]\s*\d{1,2}\s*,/.test(l)) {
       if (cur !== null) logicalLines.push(cur);
       cur = l;
     } else if (cur !== null && l.trim()) {
@@ -357,11 +359,19 @@ function calcStats(rows) {
 }
 
 function parseDate(s) {
-  const m = s.match(/^(\d{2,4})\s*[\/\.]\s*(\d+)\s*[\/\.]\s*(\d+)/);
-  if (!m) return null;
-  let year = +m[1];
-  if (year < 100) year += 2000;
-  return new Date(year, +m[2]-1, +m[3]);
+  // 完整日期：YYYY/M/D、YY/M/D、YYYY.M.D、YY.M.D 等
+  let m = s.match(/^(\d{2,4})\s*[\/\.\-]\s*(\d+)\s*[\/\.\-]\s*(\d+)/);
+  if (m) {
+    let year = +m[1];
+    if (year < 100) year += 2000;
+    return new Date(year, +m[2]-1, +m[3]);
+  }
+  // 短日期：M.D / M/D（无年份），自动补当前年
+  m = s.match(/^(\d{1,2})\s*[\/\.\-]\s*(\d{1,2})(?:\s*,|\s*$)/);
+  if (m && +m[1] >= 1 && +m[1] <= 12 && +m[2] >= 1 && +m[2] <= 31) {
+    return new Date(new Date().getFullYear(), +m[1]-1, +m[2]);
+  }
+  return null;
 }
 function isoWeek(d) {
   const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -395,12 +405,16 @@ function processCSV(text, filename) {
   setTimeout(() => {  // 让进度UI先渲染
     try {
       const all  = parseCSV(text);
-      const rows = all.filter(r => /^\d{2,4}\s*[\/\.]\s*\d+\s*[\/\.]/.test(r['时间']||''));
+      const rows = all.filter(r => {
+        const t = r['时间'] || '';
+        return /^\d{2,4}\s*[\/\.\-]\s*\d+\s*[\/\.\-]/.test(t) ||
+               /^\d{1,2}\s*[\/\.\-]\s*\d{1,2}(?:\s*,|\s*$)/.test(t);
+      });
 
       if (rows.length === 0) {
         document.getElementById('progress-section').style.display = 'none';
         document.getElementById('upload-section').style.display   = 'flex';
-        showErr('未能识别到有效数据行。请确认文件包含"时间"列，且日期格式为 YYYY/M/D 或 YYYY.M.D。');
+        showErr('未能识别到有效数据行。请确认文件包含"时间"列，日期格式支持：2026/3/1、2026.3.1、2026-3-1、26/3/1、26.3.1 等。');
         return;
       }
 
@@ -409,9 +423,9 @@ function processCSV(text, filename) {
         const d = parseDate(r['时间']||'');
         return d ? `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}` : null;
       });
-      const dailyList = Object.keys(dayMap).sort().map(d => ({
-        label:d, date:parseDate(d), ...calcStats(dayMap[d])
-      }));
+      const dailyList = Object.keys(dayMap)
+        .sort((a, b) => parseDate(b) - parseDate(a))
+        .map(d => ({ label:d, date:parseDate(d), ...calcStats(dayMap[d]) }));
 
       // ── 按月 ──
       const monMap = groupBy(rows, r => { const d=parseDate(r['时间']); return d?fmtM(d):null; });
